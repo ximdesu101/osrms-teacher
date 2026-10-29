@@ -34,10 +34,13 @@ import {
     Loader,
     CircleCheck,
     CircleX,
+    Check,
+    X,
 } from "lucide-react";
 import LoginImage from "@/assets/LoginBGI.jpg";
 import Logo from "@/assets/Logo.png";
 import { TeacherLookup, TeacherActivate } from "@/services/authService";
+import { getPasswordRequirementStatus, isPasswordValid, getPasswordPolicyError } from "@/lib/passwordPolicy";
 
 // How long to wait after the user stops typing before firing the lookup (ms)
 const LOOKUP_DEBOUNCE_MS = 600;
@@ -141,6 +144,11 @@ const ActivateAccount = ({ className, ...props }) => {
             return;
         }
 
+        if (!isPasswordValid(password)) {
+            setFieldErrors({ password: getPasswordPolicyError(password) });
+            return;
+        }
+
         if (password !== passwordConfirm) {
             setFieldErrors({ password_confirmation: "Passwords do not match." });
             return;
@@ -170,6 +178,8 @@ const ActivateAccount = ({ className, ...props }) => {
     };
 
     const restDisabled = lookupStatus !== "found" || activateMutation.isPending;
+    const passwordRequirements = getPasswordRequirementStatus(password);
+    const passwordOk = isPasswordValid(password);
 
     return (
         <div className={cn("relative w-screen h-screen overflow-hidden", className)} {...props}>
@@ -365,6 +375,24 @@ const ActivateAccount = ({ className, ...props }) => {
                                                     {fieldErrors.password}
                                                 </FieldDescription>
                                             )}
+
+                                            {password.length > 0 && (
+                                                <ul className="mt-2 space-y-1 text-xs">
+                                                    {passwordRequirements.map((req) => (
+                                                        <li
+                                                            key={req.id}
+                                                            className={req.met ? "flex items-center gap-1.5 text-green-600" : "flex items-center gap-1.5 text-muted-foreground"}
+                                                        >
+                                                            {req.met ? (
+                                                                <Check className="h-3.5 w-3.5 shrink-0" />
+                                                            ) : (
+                                                                <X className="h-3.5 w-3.5 shrink-0" />
+                                                            )}
+                                                            <span>{req.label}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
                                         </Field>
 
                                         <Field>
@@ -414,7 +442,7 @@ const ActivateAccount = ({ className, ...props }) => {
                                         <Button
                                             type="submit"
                                             className="bg-[#3e963f] hover:bg-[#3e963f]"
-                                            disabled={lookupStatus !== "found" || activateMutation.isPending}
+                                            disabled={lookupStatus !== "found" || activateMutation.isPending || !passwordOk || password !== passwordConfirm}
                                         >
                                             {activateMutation.isPending ? (
                                                 <>
