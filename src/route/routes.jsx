@@ -11,6 +11,7 @@ import Notifications from "@/pages/notifications/Notifications";
 import SubmissionRequests from "@/pages/submission-requests/SubmissionRequests";
 import Drafts from "@/pages/drafts/Drafts";
 import FileTemplates from "@/pages/file-templates/FileTemplates";
+import Profile from "@/pages/profile/Profile";
 
 export const router = createBrowserRouter([
     {
@@ -28,6 +29,11 @@ export const router = createBrowserRouter([
                 element: <Sidebar />,
                 children: [
                     { path: "dashboard", element: <Dashboard /> },
+                    {
+                        path: "profile",
+                        element: <Profile />,
+                        handle: { crumb: () => "My Profile" },
+                    },
                     {
                         path: "document-requests",
                         element: <DocumentRequests />,

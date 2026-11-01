@@ -22,11 +22,13 @@ import {
     FileBox,
     NotepadTextDashed,
     Bell,
+    UserRound,
 } from "lucide-react";
 import { useAuth, useLogout } from "@/hooks/useAuth";
 
 const navMain = [
     { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+    { title: "My Profile", url: "/profile", icon: UserRound },
     { title: "Document Requests", url: "/document-requests", icon: FilePlus },
     { title: "Incoming Requests", url: "/submission-requests", icon: Send },
     { title: "File Templates", url: "/file-templates", icon: NotepadTextDashed },

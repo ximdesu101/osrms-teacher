@@ -24,3 +24,8 @@ export const TeacherLogout = async () => {
     const response = await api.post("/teacher/logout");
     return response.data;
 };
+
+export const TeacherUpdateProfile = async (payload) => {
+    const response = await api.put("/teacher/profile", payload);
+    return response.data;
+};
