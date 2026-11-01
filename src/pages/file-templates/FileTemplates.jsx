@@ -40,6 +40,7 @@ import {
     Megaphone,
     Send,
     CalendarMinus,
+    Utensils,
 } from "lucide-react";
 
 import { GetSchoolFormsSummary, GetAdminFormsSummary, DownloadTemplate } from "@/services/templateService";
@@ -159,6 +160,12 @@ const ADMIN_FORMS = [
         icon: Database,
         name: "DepED Partnership Database System",
         description: "Records and manages school partnerships and stakeholder contributions.",
+    },
+    {
+        code: "SBFP",
+        icon: Utensils,
+        name: "SBFP – School-Based Feeding Program",
+        description: "School-Based Feeding Program documentation, beneficiary records, and related reports.",
     },
 ];
 

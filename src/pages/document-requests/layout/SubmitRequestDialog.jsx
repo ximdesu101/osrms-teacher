@@ -43,6 +43,7 @@ const DOCUMENT_MAP = {
     so:          "Special Order",
     snsed:       "National Simulation Earthquake Drill",
     transmittal: "Transmittal",
+    sbfp:        "SBFP – School-Based Feeding Program",
 };
 
 const SubmitRequestDialog = () => {

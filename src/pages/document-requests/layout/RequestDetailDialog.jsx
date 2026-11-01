@@ -124,12 +124,12 @@ const RequestDetailDialog = ({ requestId, onClose }) => {
 
                         {req.status === "Fulfilled" && req.file && (
                             <div className="rounded-md border border-border p-3">
-                                <p className="text-muted-foreground mb-2 text-xs uppercase tracking-wide font-medium">
+                                <p className="text-muted-foreground text-xs uppercase font-medium">
                                     Document Ready
                                 </p>
                                 <div className="flex items-center justify-between gap-2">
                                     <div className="min-w-0">
-                                        <p className="font-medium truncate">{req.file.original_name}</p>
+                                        <p className="font-medium">{req.file.original_name}</p>
                                         {req.file.formatted_size && (
                                             <p className="text-xs text-muted-foreground">{req.file.formatted_size}</p>
                                         )}
