@@ -13,34 +13,31 @@ import { GetSubmissionRequests } from "@/services/submissionRequestService";
  */
 export const GetTeacherDashboardMetrics = async () => {
     // Parallel status queries — each returns a Laravel paginator with `total`
-    const [allRes, requestedRes, acknowledgedRes, overdueRes, submittedRes, needsRevRes] =
+    const [completedRes, requestedRes, acknowledgedRes, overdueRes, needsRevRes, awaitingRes, cancelledRes] =
         await Promise.all([
-            GetSubmissionRequests({ page: 1, status: "All" }),
+            GetSubmissionRequests({ page: 1, status: "Completed" }),
             GetSubmissionRequests({ page: 1, status: "Requested" }),
             GetSubmissionRequests({ page: 1, status: "Acknowledged" }),
             GetSubmissionRequests({ page: 1, status: "Overdue" }),
-            GetSubmissionRequests({ page: 1, status: "Submitted" }),
             GetSubmissionRequests({ page: 1, status: "Needs Revision" }),
+            GetSubmissionRequests({ page: 1, status: "Awaiting Approval" }),
+            GetSubmissionRequests({ page: 1, status: "Cancelled" }),
         ]);
 
     const total = (res) => res?.total ?? res?.data?.length ?? 0;
 
+    // Pending: requests still needing teacher action
     const pending =
         total(requestedRes) +
         total(acknowledgedRes) +
-        total(overdueRes) +
-        total(needsRevRes);
-
-    // Upcoming deadlines ≈ non-terminal requests that still have (or had) a due date focus
-    // Use pending as a practical proxy for "outstanding with approaching due dates"
-    // plus any Overdue. Frontend can refine later with a dedicated backend endpoint.
-    const upcoming = total(overdueRes) + total(requestedRes) + total(acknowledgedRes);
+        total(needsRevRes) +
+        total(awaitingRes);
 
     return {
-        incoming: total(allRes),
+        complete: total(completedRes),
         pending,
-        submitted: total(submittedRes),
-        upcoming,
+        missing: total(cancelledRes),
+        overdue: total(overdueRes),
     };
 };
 
