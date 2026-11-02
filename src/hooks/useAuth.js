@@ -1,18 +1,20 @@
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { TeacherLogin, TeacherLogout } from "@/services/authService";
 
 export const useAuth = () => {
-    let user = null;
+    const [user, setUser] = useState(() => {
+        try {
+            return JSON.parse(localStorage.getItem("teacher_user") || "null");
+        } catch {
+            localStorage.removeItem("teacher_user");
+            return null;
+        }
+    });
 
-    try {
-        user = JSON.parse(localStorage.getItem("teacher_user") || "null");
-    } catch {
-        localStorage.removeItem("teacher_user");
-    }
-
-    return { user };
+    return { user, setUser };
 };
 
 export const useLogin = () => {

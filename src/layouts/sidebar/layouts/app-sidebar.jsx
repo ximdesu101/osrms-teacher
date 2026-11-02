@@ -53,7 +53,7 @@ export function AppSidebar({ ...props }) {
     const user = {
         name: fullName,
         username: storedUser?.username ?? "teacher",
-        avatar: "",
+        avatar: storedUser?.profile_picture ?? "",
     };
 
     const handleLogout = () => {

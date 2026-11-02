@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "@tanstack/react-form";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { TeacherUpdateProfile } from "@/services/authService";
+import {
+    TeacherUpdateProfile,
+    TeacherUploadAvatar,
+    TeacherRemoveAvatar,
+} from "@/services/authService";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -35,24 +39,33 @@ import {
     InputGroupInput,
 } from "@/components/ui/input-group";
 import {
+    Avatar,
+    AvatarFallback,
+    AvatarImage,
+} from "@/components/ui/avatar";
+import {
     UserRound,
     IdCardLanyard,
     UserStar,
-    GraduationCap,
     MapPin,
     Phone,
     SquarePen,
     Loader2,
     CircleCheck,
+    Camera,
+    Trash2,
+    ImagePlus,
 } from "lucide-react";
 
 const SUFFIXES = ["none", "Jr.", "Sr.", "II", "III", "IV", "V"];
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
 
 const required = (label) => ({ value }) =>
     !value ? `${label} is required` : undefined;
 
 const InfoRow = ({ label, value }) => (
-    <div className="grid grid-cols-2 gap-2 py-1.5 text-sm">
+    <div className="grid grid-cols-2 gap-2 py-2.5 text-sm">
         <span className="text-muted-foreground">{label}</span>
         <span className="font-medium">
             {value || <span className="text-muted-foreground italic">—</span>}
@@ -60,7 +73,190 @@ const InfoRow = ({ label, value }) => (
     </div>
 );
 
-/* ── Edit Profile Dialog ─────────────────────────────────────────── */
+const getInitials = (user) => {
+    const parts = [user?.first_name, user?.last_name].filter(Boolean);
+    if (!parts.length) return "T";
+    return parts.map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+};
+
+const AvatarCard = ({ user, onUpdated }) => {
+    const fileInputRef = useRef(null);
+    const [preview, setPreview] = useState(null);
+    const [pendingFile, setPendingFile] = useState(null);
+    const queryClient = useQueryClient();
+
+    useEffect(() => {
+        return () => {
+            if (preview) URL.revokeObjectURL(preview);
+        };
+    }, [preview]);
+
+    const uploadMutation = useMutation({
+        mutationFn: TeacherUploadAvatar,
+        onSuccess: (data) => {
+            const updated = data.teacher;
+            localStorage.setItem("teacher_user", JSON.stringify(updated));
+            queryClient.invalidateQueries({ queryKey: ["teacher-me"] });
+            toast.success("Profile picture updated.");
+            clearPending();
+            if (onUpdated) onUpdated(updated);
+        },
+        onError: (err) => {
+            toast.error(
+                err.response?.data?.message ||
+                    err.response?.data?.errors?.avatar?.[0] ||
+                    "Failed to upload profile picture."
+            );
+        },
+    });
+
+    const removeMutation = useMutation({
+        mutationFn: TeacherRemoveAvatar,
+        onSuccess: (data) => {
+            const updated = data.teacher;
+            localStorage.setItem("teacher_user", JSON.stringify(updated));
+            queryClient.invalidateQueries({ queryKey: ["teacher-me"] });
+            toast.success("Profile picture removed.");
+            clearPending();
+            if (onUpdated) onUpdated(updated);
+        },
+        onError: (err) => {
+            toast.error(err.response?.data?.message || "Failed to remove profile picture.");
+        },
+    });
+
+    const clearPending = () => {
+        if (preview) URL.revokeObjectURL(preview);
+        setPreview(null);
+        setPendingFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+
+    const handleFileSelect = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!ALLOWED_TYPES.includes(file.type)) {
+            toast.error("Only JPEG, PNG, WebP, and GIF images are allowed.");
+            e.target.value = "";
+            return;
+        }
+        if (file.size > MAX_AVATAR_BYTES) {
+            toast.error("Image size must not exceed 2 MB.");
+            e.target.value = "";
+            return;
+        }
+
+        if (preview) URL.revokeObjectURL(preview);
+        setPendingFile(file);
+        setPreview(URL.createObjectURL(file));
+    };
+
+    const handleSave = () => {
+        if (pendingFile) uploadMutation.mutate(pendingFile);
+    };
+
+    const isBusy = uploadMutation.isPending || removeMutation.isPending;
+    const displaySrc = preview || user?.profile_picture || "";
+    const fullName = [user?.first_name, user?.middle_name, user?.last_name, user?.suffix]
+        .filter(Boolean)
+        .join(" ");
+
+    return (
+        <div className="rounded-xl border bg-card p-6 shadow-sm">
+            <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
+                <div className="relative group shrink-0">
+                    <Avatar className="h-28 w-28 rounded-2xl border-2 border-border shadow-md">
+                        <AvatarImage src={displaySrc} alt={fullName} className="object-cover" />
+                        <AvatarFallback className="rounded-2xl text-2xl font-semibold bg-muted">
+                            {getInitials(user)}
+                        </AvatarFallback>
+                    </Avatar>
+                    <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/50 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 disabled:pointer-events-none"
+                        aria-label="Change profile picture"
+                    >
+                        <Camera className="h-7 w-7 text-white" />
+                    </button>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        className="hidden"
+                        onChange={handleFileSelect}
+                    />
+                </div>
+
+                <div className="flex flex-1 flex-col items-center gap-3 text-center sm:items-start sm:text-left">
+                    <div>
+                        <h2 className="text-xl font-semibold tracking-tight">{fullName || "Teacher"}</h2>
+                        <p className="text-sm text-muted-foreground">@{user?.username}</p>
+                        {user?.position && (
+                            <p className="mt-1 text-sm text-muted-foreground">{user.position}</p>
+                        )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                        {pendingFile ? (
+                            <>
+                                <Button size="sm" onClick={handleSave} disabled={isBusy} className="gap-1.5">
+                                    {uploadMutation.isPending ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Uploading…
+                                        </>
+                                    ) : (
+                                        <>
+                                            <ImagePlus className="h-4 w-4" />
+                                            Save Photo
+                                        </>
+                                    )}
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={clearPending} disabled={isBusy}>
+                                    Cancel
+                                </Button>
+                            </>
+                        ) : (
+                            <>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isBusy}
+                                    className="gap-1.5"
+                                >
+                                    <Camera className="h-4 w-4" />
+                                    {user?.profile_picture ? "Change Photo" : "Upload Photo"}
+                                </Button>
+                                {user?.profile_picture && (
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => removeMutation.mutate()}
+                                        disabled={isBusy}
+                                        className="gap-1.5 text-destructive hover:text-destructive"
+                                    >
+                                        {removeMutation.isPending ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Trash2 className="h-4 w-4" />
+                                        )}
+                                        Remove
+                                    </Button>
+                                )}
+                            </>
+                        )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">JPEG, PNG, WebP or GIF · Max 2 MB</p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const EditProfileDialog = ({ user, onSaved }) => {
     const [open, setOpen] = useState(false);
     const queryClient = useQueryClient();
@@ -68,7 +264,6 @@ const EditProfileDialog = ({ user, onSaved }) => {
     const updateMutation = useMutation({
         mutationFn: TeacherUpdateProfile,
         onSuccess: (data) => {
-            // Persist updated user info to localStorage so the sidebar reflects it
             const updated = data.teacher;
             localStorage.setItem("teacher_user", JSON.stringify(updated));
             queryClient.invalidateQueries({ queryKey: ["teacher-me"] });
@@ -86,28 +281,42 @@ const EditProfileDialog = ({ user, onSaved }) => {
                 });
                 return;
             }
-            toast.error(
-                err.response?.data?.message || "Failed to update profile."
-            );
+            toast.error(err.response?.data?.message || "Failed to update profile.");
         },
     });
 
     const form = useForm({
         defaultValues: {
-            firstName:        user?.first_name        ?? "",
-            middleName:       user?.middle_name       ?? "",
-            lastName:         user?.last_name         ?? "",
-            suffix:           user?.suffix            ?? "none",
-            region:           user?.region            ?? "",
-            province:         user?.province          ?? "",
+            firstName: user?.first_name ?? "",
+            middleName: user?.middle_name ?? "",
+            lastName: user?.last_name ?? "",
+            suffix: user?.suffix ?? "none",
+            region: user?.region ?? "",
+            province: user?.province ?? "",
             cityMunicipality: user?.city_municipality ?? "",
-            barangay:         user?.barangay          ?? "",
-            contactNumber:    user?.contact_number    ?? "",
+            barangay: user?.barangay ?? "",
+            contactNumber: user?.contact_number ?? "",
         },
         onSubmit: async ({ value }) => {
             await updateMutation.mutateAsync(value);
         },
     });
+
+    useEffect(() => {
+        if (open && user) {
+            form.reset({
+                firstName: user.first_name ?? "",
+                middleName: user.middle_name ?? "",
+                lastName: user.last_name ?? "",
+                suffix: user.suffix ?? "none",
+                region: user.region ?? "",
+                province: user.province ?? "",
+                cityMunicipality: user.city_municipality ?? "",
+                barangay: user.barangay ?? "",
+                contactNumber: user.contact_number ?? "",
+            });
+        }
+    }, [open, user]);
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -130,12 +339,8 @@ const EditProfileDialog = ({ user, onSaved }) => {
                     }}
                 >
                     <FieldGroup>
-                        {/* First + Middle Name */}
                         <FieldGroup className="grid grid-cols-2">
-                            <form.Field
-                                name="firstName"
-                                validators={{ onChange: required("First name") }}
-                            >
+                            <form.Field name="firstName" validators={{ onChange: required("First name") }}>
                                 {(field) => (
                                     <Field>
                                         <FieldLabel>First Name</FieldLabel>
@@ -146,11 +351,9 @@ const EditProfileDialog = ({ user, onSaved }) => {
                                                 onChange={(e) => field.handleChange(e.target.value)}
                                                 onBlur={field.handleBlur}
                                             />
-                                            <InputGroupAddon>
-                                                <UserRound />
-                                            </InputGroupAddon>
+                                            <InputGroupAddon><UserRound /></InputGroupAddon>
                                         </InputGroup>
-                                        {field.state.meta.errors.length > 0 && (
+                                        {field.state.meta.errors?.length > 0 && (
                                             <FieldDescription className="text-destructive">
                                                 {field.state.meta.errors[0]}
                                             </FieldDescription>
@@ -169,55 +372,40 @@ const EditProfileDialog = ({ user, onSaved }) => {
                                                 onChange={(e) => field.handleChange(e.target.value)}
                                                 onBlur={field.handleBlur}
                                             />
-                                            <InputGroupAddon>
-                                                <UserRound />
-                                            </InputGroupAddon>
+                                            <InputGroupAddon><UserRound /></InputGroupAddon>
                                         </InputGroup>
                                     </Field>
                                 )}
                             </form.Field>
                         </FieldGroup>
 
-                        {/* Last Name + Suffix */}
-                        <FieldGroup className="grid grid-cols-3">
-                            <div className="col-span-2">
-                                <form.Field
-                                    name="lastName"
-                                    validators={{ onChange: required("Last name") }}
-                                >
-                                    {(field) => (
-                                        <Field>
-                                            <FieldLabel>Last Name</FieldLabel>
-                                            <InputGroup>
-                                                <InputGroupInput
-                                                    placeholder="Dela Cruz"
-                                                    value={field.state.value}
-                                                    onChange={(e) =>
-                                                        field.handleChange(e.target.value)
-                                                    }
-                                                    onBlur={field.handleBlur}
-                                                />
-                                                <InputGroupAddon>
-                                                    <UserRound />
-                                                </InputGroupAddon>
-                                            </InputGroup>
-                                            {field.state.meta.errors.length > 0 && (
-                                                <FieldDescription className="text-destructive">
-                                                    {field.state.meta.errors[0]}
-                                                </FieldDescription>
-                                            )}
-                                        </Field>
-                                    )}
-                                </form.Field>
-                            </div>
+                        <FieldGroup className="grid grid-cols-2">
+                            <form.Field name="lastName" validators={{ onChange: required("Last name") }}>
+                                {(field) => (
+                                    <Field>
+                                        <FieldLabel>Last Name</FieldLabel>
+                                        <InputGroup>
+                                            <InputGroupInput
+                                                placeholder="Dela Cruz"
+                                                value={field.state.value}
+                                                onChange={(e) => field.handleChange(e.target.value)}
+                                                onBlur={field.handleBlur}
+                                            />
+                                            <InputGroupAddon><UserRound /></InputGroupAddon>
+                                        </InputGroup>
+                                        {field.state.meta.errors?.length > 0 && (
+                                            <FieldDescription className="text-destructive">
+                                                {field.state.meta.errors[0]}
+                                            </FieldDescription>
+                                        )}
+                                    </Field>
+                                )}
+                            </form.Field>
                             <form.Field name="suffix">
                                 {(field) => (
                                     <Field>
                                         <FieldLabel>Suffix</FieldLabel>
-                                        <Select
-                                            value={field.state.value || "none"}
-                                            onValueChange={(v) => field.handleChange(v)}
-                                        >
+                                        <Select value={field.state.value} onValueChange={field.handleChange}>
                                             <SelectTrigger>
                                                 <SelectValue placeholder="None" />
                                             </SelectTrigger>
@@ -236,55 +424,64 @@ const EditProfileDialog = ({ user, onSaved }) => {
                             </form.Field>
                         </FieldGroup>
 
-                        <Separator />
+                        <Separator className="my-1" />
+                        <p className="text-xs font-medium text-muted-foreground">Address</p>
 
-                        {/* Address Fields */}
+                        <form.Field name="region" validators={{ onChange: required("Region") }}>
+                            {(field) => (
+                                <Field>
+                                    <FieldLabel>Region</FieldLabel>
+                                    <InputGroup>
+                                        <InputGroupInput
+                                            value={field.state.value}
+                                            onChange={(e) => field.handleChange(e.target.value)}
+                                            onBlur={field.handleBlur}
+                                        />
+                                        <InputGroupAddon><MapPin /></InputGroupAddon>
+                                    </InputGroup>
+                                    {field.state.meta.errors?.length > 0 && (
+                                        <FieldDescription className="text-destructive">
+                                            {field.state.meta.errors[0]}
+                                        </FieldDescription>
+                                    )}
+                                </Field>
+                            )}
+                        </form.Field>
+
                         <FieldGroup className="grid grid-cols-2">
-                            <form.Field
-                                name="region"
-                                validators={{ onChange: required("Region") }}
-                            >
-                                {(field) => (
-                                    <Field>
-                                        <FieldLabel>Region</FieldLabel>
-                                        <InputGroup>
-                                            <InputGroupInput
-                                                placeholder="e.g. Region III"
-                                                value={field.state.value}
-                                                onChange={(e) => field.handleChange(e.target.value)}
-                                                onBlur={field.handleBlur}
-                                            />
-                                            <InputGroupAddon>
-                                                <MapPin />
-                                            </InputGroupAddon>
-                                        </InputGroup>
-                                        {field.state.meta.errors.length > 0 && (
-                                            <FieldDescription className="text-destructive">
-                                                {field.state.meta.errors[0]}
-                                            </FieldDescription>
-                                        )}
-                                    </Field>
-                                )}
-                            </form.Field>
-                            <form.Field
-                                name="province"
-                                validators={{ onChange: required("Province") }}
-                            >
+                            <form.Field name="province" validators={{ onChange: required("Province") }}>
                                 {(field) => (
                                     <Field>
                                         <FieldLabel>Province</FieldLabel>
                                         <InputGroup>
                                             <InputGroupInput
-                                                placeholder="e.g. Bulacan"
                                                 value={field.state.value}
                                                 onChange={(e) => field.handleChange(e.target.value)}
                                                 onBlur={field.handleBlur}
                                             />
-                                            <InputGroupAddon>
-                                                <MapPin />
-                                            </InputGroupAddon>
+                                            <InputGroupAddon><MapPin /></InputGroupAddon>
                                         </InputGroup>
-                                        {field.state.meta.errors.length > 0 && (
+                                        {field.state.meta.errors?.length > 0 && (
+                                            <FieldDescription className="text-destructive">
+                                                {field.state.meta.errors[0]}
+                                            </FieldDescription>
+                                        )}
+                                    </Field>
+                                )}
+                            </form.Field>
+                            <form.Field name="cityMunicipality" validators={{ onChange: required("City/Municipality") }}>
+                                {(field) => (
+                                    <Field>
+                                        <FieldLabel>City / Municipality</FieldLabel>
+                                        <InputGroup>
+                                            <InputGroupInput
+                                                value={field.state.value}
+                                                onChange={(e) => field.handleChange(e.target.value)}
+                                                onBlur={field.handleBlur}
+                                            />
+                                            <InputGroupAddon><MapPin /></InputGroupAddon>
+                                        </InputGroup>
+                                        {field.state.meta.errors?.length > 0 && (
                                             <FieldDescription className="text-destructive">
                                                 {field.state.meta.errors[0]}
                                             </FieldDescription>
@@ -294,81 +491,43 @@ const EditProfileDialog = ({ user, onSaved }) => {
                             </form.Field>
                         </FieldGroup>
 
-                        <FieldGroup className="grid grid-cols-2">
-                            <form.Field
-                                name="cityMunicipality"
-                                validators={{ onChange: required("City/Municipality") }}
-                            >
-                                {(field) => (
-                                    <Field>
-                                        <FieldLabel>City/Municipality</FieldLabel>
-                                        <InputGroup>
-                                            <InputGroupInput
-                                                placeholder="e.g. Malolos"
-                                                value={field.state.value}
-                                                onChange={(e) => field.handleChange(e.target.value)}
-                                                onBlur={field.handleBlur}
-                                            />
-                                            <InputGroupAddon>
-                                                <MapPin />
-                                            </InputGroupAddon>
-                                        </InputGroup>
-                                        {field.state.meta.errors.length > 0 && (
-                                            <FieldDescription className="text-destructive">
-                                                {field.state.meta.errors[0]}
-                                            </FieldDescription>
-                                        )}
-                                    </Field>
-                                )}
-                            </form.Field>
-                            <form.Field
-                                name="barangay"
-                                validators={{ onChange: required("Barangay") }}
-                            >
-                                {(field) => (
-                                    <Field>
-                                        <FieldLabel>Barangay</FieldLabel>
-                                        <InputGroup>
-                                            <InputGroupInput
-                                                placeholder="e.g. Tagnao"
-                                                value={field.state.value}
-                                                onChange={(e) => field.handleChange(e.target.value)}
-                                                onBlur={field.handleBlur}
-                                            />
-                                            <InputGroupAddon>
-                                                <MapPin />
-                                            </InputGroupAddon>
-                                        </InputGroup>
-                                        {field.state.meta.errors.length > 0 && (
-                                            <FieldDescription className="text-destructive">
-                                                {field.state.meta.errors[0]}
-                                            </FieldDescription>
-                                        )}
-                                    </Field>
-                                )}
-                            </form.Field>
-                        </FieldGroup>
+                        <form.Field name="barangay" validators={{ onChange: required("Barangay") }}>
+                            {(field) => (
+                                <Field>
+                                    <FieldLabel>Barangay</FieldLabel>
+                                    <InputGroup>
+                                        <InputGroupInput
+                                            value={field.state.value}
+                                            onChange={(e) => field.handleChange(e.target.value)}
+                                            onBlur={field.handleBlur}
+                                        />
+                                        <InputGroupAddon><MapPin /></InputGroupAddon>
+                                    </InputGroup>
+                                    {field.state.meta.errors?.length > 0 && (
+                                        <FieldDescription className="text-destructive">
+                                            {field.state.meta.errors[0]}
+                                        </FieldDescription>
+                                    )}
+                                </Field>
+                            )}
+                        </form.Field>
 
-                        {/* Contact Number */}
-                        <form.Field
-                            name="contactNumber"
-                            validators={{ onChange: required("Contact number") }}
-                        >
+                        <Separator className="my-1" />
+
+                        <form.Field name="contactNumber" validators={{ onChange: required("Contact number") }}>
                             {(field) => (
                                 <Field>
                                     <FieldLabel>Contact Number</FieldLabel>
                                     <InputGroup>
                                         <InputGroupInput
-                                            placeholder="+63 9XX XXX XXXX"
+                                            placeholder="09XXXXXXXXX"
                                             value={field.state.value}
                                             onChange={(e) => field.handleChange(e.target.value)}
                                             onBlur={field.handleBlur}
                                         />
-                                        <InputGroupAddon>
-                                            <Phone />
-                                        </InputGroupAddon>
+                                        <InputGroupAddon><Phone /></InputGroupAddon>
                                     </InputGroup>
-                                    {field.state.meta.errors.length > 0 && (
+                                    {field.state.meta.errors?.length > 0 && (
                                         <FieldDescription className="text-destructive">
                                             {field.state.meta.errors[0]}
                                         </FieldDescription>
@@ -378,21 +537,20 @@ const EditProfileDialog = ({ user, onSaved }) => {
                         </form.Field>
                     </FieldGroup>
 
-                    <DialogFooter className="mt-4">
+                    <DialogFooter className="mt-6 gap-2">
                         <DialogClose asChild>
-                            <Button variant="outline" type="button">
+                            <Button type="button" variant="outline" disabled={updateMutation.isPending}>
                                 Cancel
                             </Button>
                         </DialogClose>
-                        <form.Subscribe
-                            selector={(state) => [state.canSubmit, state.isSubmitting]}
-                        >
+                        <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting]}>
                             {([canSubmit, isSubmitting]) => (
                                 <Button
                                     type="submit"
                                     disabled={!canSubmit || isSubmitting || updateMutation.isPending}
+                                    className="gap-1.5"
                                 >
-                                    {isSubmitting || updateMutation.isPending ? (
+                                    {updateMutation.isPending ? (
                                         <>
                                             <Loader2 className="h-4 w-4 animate-spin" />
                                             Saving…
@@ -410,13 +568,13 @@ const EditProfileDialog = ({ user, onSaved }) => {
     );
 };
 
-/* ── Profile Page ─────────────────────────────────────────────────── */
 const Profile = () => {
-    const { user: storedUser } = useAuth();
+    const { user: storedUser, setUser: setStoredUser } = useAuth();
     const [user, setUser] = useState(storedUser);
 
     const handleSaved = (updated) => {
         setUser(updated);
+        setStoredUser(updated);
     };
 
     if (!user) {
@@ -432,49 +590,48 @@ const Profile = () => {
         .join(" ");
 
     return (
-        <div className="grid gap-6 max-w-2xl">
-            {/* Page header */}
-            <div className="flex items-start justify-between">
+        <div className="mx-auto grid w-full max-w-3xl gap-6">
+            <div className="flex items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-lg font-semibold">My Profile</h1>
-                    <p className="text-sm text-muted-foreground">
-                        View and update your personal information.
+                    <h1 className="text-xl font-semibold tracking-tight">My Profile</h1>
+                    <p className="mt-0.5 text-sm text-muted-foreground">
+                        Manage your photo and personal information.
                     </p>
                 </div>
                 <EditProfileDialog user={user} onSaved={handleSaved} />
             </div>
 
-            <Separator />
+            <AvatarCard user={user} onUpdated={handleSaved} />
 
-            {/* Personal Information */}
-            <div>
-                <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    <UserRound className="h-3 w-3" /> Personal Information
-                </p>
-                <div className="rounded-md border px-4">
-                    <InfoRow label="Full Name"   value={fullName} />
+            <div className="rounded-xl border bg-card shadow-sm">
+                <div className="flex items-center gap-2 border-b px-5 py-3">
+                    <UserRound className="h-4 w-4 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold">Personal Information</h3>
+                </div>
+                <div className="px-5">
+                    <InfoRow label="Full Name" value={fullName} />
                     <Separator />
-                    <InfoRow label="First Name"  value={user.first_name} />
+                    <InfoRow label="First Name" value={user.first_name} />
                     <Separator />
                     <InfoRow label="Middle Name" value={user.middle_name} />
                     <Separator />
-                    <InfoRow label="Last Name"   value={user.last_name} />
+                    <InfoRow label="Last Name" value={user.last_name} />
                     <Separator />
-                    <InfoRow label="Suffix"      value={user.suffix} />
+                    <InfoRow label="Suffix" value={user.suffix} />
                 </div>
             </div>
 
-            {/* Account Information */}
-            <div>
-                <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    <IdCardLanyard className="h-3 w-3" /> Account Information
-                </p>
-                <div className="rounded-md border px-4">
+            <div className="rounded-xl border bg-card shadow-sm">
+                <div className="flex items-center gap-2 border-b px-5 py-3">
+                    <IdCardLanyard className="h-4 w-4 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold">Account Information</h3>
+                </div>
+                <div className="px-5">
                     <InfoRow label="Employee ID" value={user.teacher_id} />
                     <Separator />
-                    <InfoRow label="Username"    value={user.username} />
+                    <InfoRow label="Username" value={user.username} />
                     <Separator />
-                    <div className="grid grid-cols-2 gap-2 py-1.5 text-sm">
+                    <div className="grid grid-cols-2 gap-2 py-2.5 text-sm">
                         <span className="text-muted-foreground">Account Status</span>
                         <span className="flex items-center gap-1.5 font-medium capitalize">
                             <CircleCheck
@@ -499,40 +656,40 @@ const Profile = () => {
                 </div>
             </div>
 
-            {/* Employment Information */}
-            <div>
-                <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    <UserStar className="h-3 w-3" /> Employment
-                </p>
-                <div className="rounded-md border px-4">
-                    <InfoRow label="Position"       value={user.position} />
+            <div className="rounded-xl border bg-card shadow-sm">
+                <div className="flex items-center gap-2 border-b px-5 py-3">
+                    <UserStar className="h-4 w-4 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold">Employment</h3>
+                </div>
+                <div className="px-5">
+                    <InfoRow label="Position" value={user.position} />
                     <Separator />
                     <InfoRow label="Class Advisory" value={user.class_advisory} />
                 </div>
             </div>
 
-            {/* Address */}
-            <div>
-                <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    <MapPin className="h-3 w-3" /> Address
-                </p>
-                <div className="rounded-md border px-4">
-                    <InfoRow label="Region"             value={user.region} />
+            <div className="rounded-xl border bg-card shadow-sm">
+                <div className="flex items-center gap-2 border-b px-5 py-3">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold">Address</h3>
+                </div>
+                <div className="px-5">
+                    <InfoRow label="Region" value={user.region} />
                     <Separator />
-                    <InfoRow label="Province"           value={user.province} />
+                    <InfoRow label="Province" value={user.province} />
                     <Separator />
-                    <InfoRow label="City/Municipality"  value={user.city_municipality} />
+                    <InfoRow label="City / Municipality" value={user.city_municipality} />
                     <Separator />
-                    <InfoRow label="Barangay"           value={user.barangay} />
+                    <InfoRow label="Barangay" value={user.barangay} />
                 </div>
             </div>
 
-            {/* Contact */}
-            <div>
-                <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    <Phone className="h-3 w-3" /> Contact
-                </p>
-                <div className="rounded-md border px-4">
+            <div className="rounded-xl border bg-card shadow-sm">
+                <div className="flex items-center gap-2 border-b px-5 py-3">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold">Contact</h3>
+                </div>
+                <div className="px-5">
                     <InfoRow label="Contact Number" value={user.contact_number} />
                 </div>
             </div>

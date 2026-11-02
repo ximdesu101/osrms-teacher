@@ -29,3 +29,18 @@ export const TeacherUpdateProfile = async (payload) => {
     const response = await api.put("/teacher/profile", payload);
     return response.data;
 };
+
+export const TeacherUploadAvatar = async (file) => {
+    const formData = new FormData();
+    formData.append("avatar", file);
+    const response = await api.post("/teacher/profile/avatar", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+    });
+    return response.data;
+};
+
+export const TeacherRemoveAvatar = async () => {
+    const response = await api.delete("/teacher/profile/avatar");
+    return response.data;
+};
+
