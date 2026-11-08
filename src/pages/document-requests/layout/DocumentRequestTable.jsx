@@ -79,7 +79,10 @@ const DocumentRequestTable = () => {
         placeholderData: keepPreviousData,
     });
 
-    const requests = data?.data ?? [];
+    // Hide requests cancelled by the admin — teacher should not see those
+    const requests = (data?.data ?? []).filter(
+        (r) => !(r.status === "Cancelled" && r.cancelled_by === "admin")
+    );
     const lastPage = data?.last_page ?? 1;
     const currentPage = data?.current_page ?? 1;
 

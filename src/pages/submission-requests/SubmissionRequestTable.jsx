@@ -55,7 +55,6 @@ const TABS = [
     { value: "Needs Revision",    label: "Needs Revision" },
     { value: "Submitted",         label: "Submitted" },
     { value: "Overdue",           label: "Overdue" },
-    { value: "Cancelled",         label: "Cancelled" },
 ];
 
 function fmtDate(str) {
@@ -81,7 +80,8 @@ const SubmissionRequestTable = () => {
         placeholderData: keepPreviousData,
     });
 
-    const requests = data?.data ?? [];
+    // Cancelled submission requests are admin-initiated — hide them from teacher's view
+    const requests = (data?.data ?? []).filter((r) => r.status !== "Cancelled");
     const lastPage = data?.last_page ?? 1;
     const currentPage = data?.current_page ?? 1;
 
@@ -164,21 +164,19 @@ const SubmissionRequestTable = () => {
                                         )}
                                     </TableCell>
                                     <TableCell>
-                                        <div className="flex flex-col gap-1">
+                                        {req.submission?.status ? (
+                                            <Badge
+                                                className={
+                                                    submissionStatusClass[req.submission.status] || "bg-muted text-muted-foreground"
+                                                }
+                                            >
+                                                {req.submission.status}
+                                            </Badge>
+                                        ) : (
                                             <Badge className={statusClass[req.status] || ""}>
                                                 {req.status}
                                             </Badge>
-                                            {/* Show submission sub-status when present */}
-                                            {req.submission?.status && (
-                                                <Badge
-                                                    className={
-                                                        submissionStatusClass[req.submission.status] || "bg-muted text-muted-foreground"
-                                                    }
-                                                >
-                                                    {req.submission.status}
-                                                </Badge>
-                                            )}
-                                        </div>
+                                        )}
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <Button
