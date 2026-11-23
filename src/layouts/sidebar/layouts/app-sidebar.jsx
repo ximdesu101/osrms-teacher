@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavMain } from "@/layouts/sidebar/layouts/nav-main";
 import { NavUser } from "@/layouts/sidebar/layouts/nav-user";
 import {
@@ -23,14 +23,17 @@ import {
     NotepadTextDashed,
     Bell,
     UserRound,
+    Upload,
 } from "lucide-react";
 import { useAuth, useLogout } from "@/hooks/useAuth";
+import { GetTeacherNotificationUnreadCount } from "@/services/notificationService";
 
 const navMain = [
     { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
     { title: "My Profile", url: "/profile", icon: UserRound },
     { title: "Document Requests", url: "/document-requests", icon: FilePlus },
     { title: "Incoming Requests", url: "/submission-requests", icon: Send },
+    { title: "Direct Submissions", url: "/direct-submissions", icon: Upload },
     { title: "File Templates", url: "/file-templates", icon: NotepadTextDashed },
     { title: "Drafts", url: "/drafts", icon: FileBox },
     { title: "Notifications", url: "/notifications", icon: Bell },
@@ -60,6 +63,16 @@ export function AppSidebar({ ...props }) {
         logoutMutation.mutate();
     };
 
+    const { data: unreadData } = useQuery({
+        queryKey: ["teacher-unread-count"],
+        queryFn: GetTeacherNotificationUnreadCount,
+        refetchInterval: 30000,
+    });
+    const unreadCount = unreadData?.unread_count ?? unreadData?.count ?? 0;
+    const navItems = navMain.map((item) =>
+        item.title === "Notifications" ? { ...item, badge: unreadCount } : item
+    );
+
     return (
         <Sidebar collapsible="icon" {...props}>
             <SidebarHeader>
@@ -82,7 +95,7 @@ export function AppSidebar({ ...props }) {
                 </SidebarMenu>
             </SidebarHeader>
             <SidebarContent>
-                <NavMain items={navMain} />
+                <NavMain items={navItems} />
             </SidebarContent>
             <SidebarFooter>
                 <NavUser user={user} onLogout={handleLogout} />

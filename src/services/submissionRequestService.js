@@ -61,3 +61,19 @@ export const ResubmitDocument = async (submissionId, file) => {
     );
     return response.data;
 };
+
+export const DirectSubmitDocument = async ({ documentCode, documentName, file }) => {
+    const formData = new FormData();
+    formData.append("documentCode", documentCode);
+    formData.append("documentName", documentName);
+    formData.append("file", file);
+    const response = await api.post("/teacher/document-submissions/direct", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+    });
+    return response.data;
+};
+
+export const GetDirectSubmissions = async ({ page = 1 } = {}) => {
+    const response = await api.get("/teacher/document-submissions/direct", { params: { page } });
+    return response.data;
+};

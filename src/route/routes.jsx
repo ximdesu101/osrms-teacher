@@ -9,6 +9,7 @@ import Dashboard from "@/pages/dashboard/Dashboard";
 import DocumentRequests from "@/pages/document-requests/DocumentRequests";
 import Notifications from "@/pages/notifications/Notifications";
 import SubmissionRequests from "@/pages/submission-requests/SubmissionRequests";
+import DirectSubmissionsPage from "@/pages/direct-submissions/DirectSubmissionsPage";
 import Drafts from "@/pages/drafts/Drafts";
 import FileTemplates from "@/pages/file-templates/FileTemplates";
 import Profile from "@/pages/profile/Profile";
@@ -43,6 +44,11 @@ export const router = createBrowserRouter([
                         path: "submission-requests",
                         element: <SubmissionRequests />,
                         handle: { crumb: () => "Incoming Requests" },
+                    },
+                    {
+                        path: "direct-submissions",
+                        element: <DirectSubmissionsPage />,
+                        handle: { crumb: () => "Direct Submissions" },
                     },
                     {
                         path: "drafts",

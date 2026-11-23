@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "@tanstack/react-form";
 import { toast } from "sonner";
@@ -55,7 +55,19 @@ import {
     Camera,
     Trash2,
     ImagePlus,
+    GraduationCap,
+    BriefcaseBusiness,
 } from "lucide-react";
+import {
+    getRegions,
+    getProvincesByRegion,
+    getCitiesByProvince,
+    getBarangaysByCity,
+    getRegionName,
+    getProvinceName,
+    getCityName,
+    getBarangayName,
+} from "@/data/ph-address";
 
 const SUFFIXES = ["none", "Jr.", "Sr.", "II", "III", "IV", "V"];
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
@@ -259,6 +271,9 @@ const AvatarCard = ({ user, onUpdated }) => {
 
 const EditProfileDialog = ({ user, onSaved }) => {
     const [open, setOpen] = useState(false);
+    const [regionCode, setRegionCode] = useState("");
+    const [provinceCode, setProvinceCode] = useState("");
+    const [cityCode, setCityCode] = useState("");
     const queryClient = useQueryClient();
 
     const updateMutation = useMutation({
@@ -291,6 +306,9 @@ const EditProfileDialog = ({ user, onSaved }) => {
             middleName: user?.middle_name ?? "",
             lastName: user?.last_name ?? "",
             suffix: user?.suffix ?? "none",
+            sex: user?.sex ?? "",
+            religion: user?.religion ?? "",
+            ethnicGroup: user?.ethnic_group ?? "",
             region: user?.region ?? "",
             province: user?.province ?? "",
             cityMunicipality: user?.city_municipality ?? "",
@@ -302,6 +320,11 @@ const EditProfileDialog = ({ user, onSaved }) => {
         },
     });
 
+    const regions = useMemo(() => getRegions(), []);
+    const provinces = useMemo(() => getProvincesByRegion(regionCode), [regionCode]);
+    const cities = useMemo(() => getCitiesByProvince(provinceCode), [provinceCode]);
+    const barangays = useMemo(() => getBarangaysByCity(cityCode), [cityCode]);
+
     useEffect(() => {
         if (open && user) {
             form.reset({
@@ -309,14 +332,55 @@ const EditProfileDialog = ({ user, onSaved }) => {
                 middleName: user.middle_name ?? "",
                 lastName: user.last_name ?? "",
                 suffix: user.suffix ?? "none",
+                sex: user.sex ?? "",
+                religion: user.religion ?? "",
+                ethnicGroup: user.ethnic_group ?? "",
                 region: user.region ?? "",
                 province: user.province ?? "",
                 cityMunicipality: user.city_municipality ?? "",
                 barangay: user.barangay ?? "",
                 contactNumber: user.contact_number ?? "",
             });
+            const region = regions.find((r) => r.region_name === (user.region ?? ""));
+            const rCode = region?.region_code ?? "";
+            const provs = rCode ? getProvincesByRegion(rCode) : [];
+            const province = provs.find((p) => p.province_name === (user.province ?? ""));
+            const pCode = province?.province_code ?? "";
+            const cits = pCode ? getCitiesByProvince(pCode) : [];
+            const city = cits.find((c) => c.city_name === (user.city_municipality ?? ""));
+            setRegionCode(rCode);
+            setProvinceCode(pCode);
+            setCityCode(city?.city_code ?? "");
         }
-    }, [open, user]);
+    }, [open, user, regions]);
+
+    const handleRegionChange = (code) => {
+        setRegionCode(code);
+        setProvinceCode("");
+        setCityCode("");
+        form.setFieldValue("region", getRegionName(code));
+        form.setFieldValue("province", "");
+        form.setFieldValue("cityMunicipality", "");
+        form.setFieldValue("barangay", "");
+    };
+
+    const handleProvinceChange = (code) => {
+        setProvinceCode(code);
+        setCityCode("");
+        form.setFieldValue("province", getProvinceName(code));
+        form.setFieldValue("cityMunicipality", "");
+        form.setFieldValue("barangay", "");
+    };
+
+    const handleCityChange = (code) => {
+        setCityCode(code);
+        form.setFieldValue("cityMunicipality", getCityName(code));
+        form.setFieldValue("barangay", "");
+    };
+
+    const handleBarangayChange = (code) => {
+        form.setFieldValue("barangay", getBarangayName(code));
+    };
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -424,96 +488,6 @@ const EditProfileDialog = ({ user, onSaved }) => {
                             </form.Field>
                         </FieldGroup>
 
-                        <Separator className="my-1" />
-                        <p className="text-xs font-medium text-muted-foreground">Address</p>
-
-                        <form.Field name="region" validators={{ onChange: required("Region") }}>
-                            {(field) => (
-                                <Field>
-                                    <FieldLabel>Region</FieldLabel>
-                                    <InputGroup>
-                                        <InputGroupInput
-                                            value={field.state.value}
-                                            onChange={(e) => field.handleChange(e.target.value)}
-                                            onBlur={field.handleBlur}
-                                        />
-                                        <InputGroupAddon><MapPin /></InputGroupAddon>
-                                    </InputGroup>
-                                    {field.state.meta.errors?.length > 0 && (
-                                        <FieldDescription className="text-destructive">
-                                            {field.state.meta.errors[0]}
-                                        </FieldDescription>
-                                    )}
-                                </Field>
-                            )}
-                        </form.Field>
-
-                        <FieldGroup className="grid grid-cols-2">
-                            <form.Field name="province" validators={{ onChange: required("Province") }}>
-                                {(field) => (
-                                    <Field>
-                                        <FieldLabel>Province</FieldLabel>
-                                        <InputGroup>
-                                            <InputGroupInput
-                                                value={field.state.value}
-                                                onChange={(e) => field.handleChange(e.target.value)}
-                                                onBlur={field.handleBlur}
-                                            />
-                                            <InputGroupAddon><MapPin /></InputGroupAddon>
-                                        </InputGroup>
-                                        {field.state.meta.errors?.length > 0 && (
-                                            <FieldDescription className="text-destructive">
-                                                {field.state.meta.errors[0]}
-                                            </FieldDescription>
-                                        )}
-                                    </Field>
-                                )}
-                            </form.Field>
-                            <form.Field name="cityMunicipality" validators={{ onChange: required("City/Municipality") }}>
-                                {(field) => (
-                                    <Field>
-                                        <FieldLabel>City / Municipality</FieldLabel>
-                                        <InputGroup>
-                                            <InputGroupInput
-                                                value={field.state.value}
-                                                onChange={(e) => field.handleChange(e.target.value)}
-                                                onBlur={field.handleBlur}
-                                            />
-                                            <InputGroupAddon><MapPin /></InputGroupAddon>
-                                        </InputGroup>
-                                        {field.state.meta.errors?.length > 0 && (
-                                            <FieldDescription className="text-destructive">
-                                                {field.state.meta.errors[0]}
-                                            </FieldDescription>
-                                        )}
-                                    </Field>
-                                )}
-                            </form.Field>
-                        </FieldGroup>
-
-                        <form.Field name="barangay" validators={{ onChange: required("Barangay") }}>
-                            {(field) => (
-                                <Field>
-                                    <FieldLabel>Barangay</FieldLabel>
-                                    <InputGroup>
-                                        <InputGroupInput
-                                            value={field.state.value}
-                                            onChange={(e) => field.handleChange(e.target.value)}
-                                            onBlur={field.handleBlur}
-                                        />
-                                        <InputGroupAddon><MapPin /></InputGroupAddon>
-                                    </InputGroup>
-                                    {field.state.meta.errors?.length > 0 && (
-                                        <FieldDescription className="text-destructive">
-                                            {field.state.meta.errors[0]}
-                                        </FieldDescription>
-                                    )}
-                                </Field>
-                            )}
-                        </form.Field>
-
-                        <Separator className="my-1" />
-
                         <form.Field name="contactNumber" validators={{ onChange: required("Contact number") }}>
                             {(field) => (
                                 <Field>
@@ -535,6 +509,153 @@ const EditProfileDialog = ({ user, onSaved }) => {
                                 </Field>
                             )}
                         </form.Field>
+
+                        <FieldGroup className="grid grid-cols-3">
+                            <form.Field name="sex">
+                                {(field) => (
+                                    <Field>
+                                        <FieldLabel>Sex</FieldLabel>
+                                        <Select value={field.state.value} onValueChange={field.handleChange}>
+                                            <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                                            <SelectContent><SelectGroup><SelectItem value="Male">Male</SelectItem><SelectItem value="Female">Female</SelectItem></SelectGroup></SelectContent>
+                                        </Select>
+                                    </Field>
+                                )}
+                            </form.Field>
+                            <form.Field name="religion">
+                                {(field) => (
+                                    <Field>
+                                        <FieldLabel>Religion</FieldLabel>
+                                        <InputGroup>
+                                            <InputGroupInput value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />
+                                            <InputGroupAddon><UserRound /></InputGroupAddon>
+                                        </InputGroup>
+                                    </Field>
+                                )}
+                            </form.Field>
+                            <form.Field name="ethnicGroup">
+                                {(field) => (
+                                    <Field>
+                                        <FieldLabel>Ethnic Group</FieldLabel>
+                                        <InputGroup>
+                                            <InputGroupInput value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />
+                                            <InputGroupAddon><UserRound /></InputGroupAddon>
+                                        </InputGroup>
+                                    </Field>
+                                )}
+                            </form.Field>
+                        </FieldGroup>
+
+                        <Separator className="my-1" />
+                        <p className="text-xs font-medium text-muted-foreground">Address</p>
+
+                        <FieldGroup className="grid grid-cols-2">
+                            <form.Field name="region" validators={{ onChange: required("Region") }}>
+                                {(field) => (
+                                    <Field>
+                                        <FieldLabel>Region</FieldLabel>
+                                        <Select value={regionCode || undefined} onValueChange={handleRegionChange}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select Region" />
+                                            </SelectTrigger>
+                                            <SelectContent position="popper">
+                                                <SelectGroup>
+                                                    {regions.map((r) => (
+                                                        <SelectItem key={r.region_code} value={r.region_code}>
+                                                            {r.region_name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectGroup>
+                                            </SelectContent>
+                                        </Select>
+                                        {field.state.meta.errors?.length > 0 && (
+                                            <FieldDescription className="text-destructive">{field.state.meta.errors[0]}</FieldDescription>
+                                        )}
+                                    </Field>
+                                )}
+                            </form.Field>
+                            <form.Field name="province" validators={{ onChange: required("Province / District") }}>
+                                {(field) => (
+                                    <Field>
+                                        <FieldLabel>Province / District</FieldLabel>
+                                        <Select value={provinceCode || undefined} onValueChange={handleProvinceChange} disabled={!regionCode}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder={regionCode ? "Select Province / District" : "Select Region first"} />
+                                            </SelectTrigger>
+                                            <SelectContent position="popper">
+                                                <SelectGroup>
+                                                    {provinces.map((p) => (
+                                                        <SelectItem key={p.province_code} value={p.province_code}>
+                                                            {p.province_name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectGroup>
+                                            </SelectContent>
+                                        </Select>
+                                        {field.state.meta.errors?.length > 0 && (
+                                            <FieldDescription className="text-destructive">{field.state.meta.errors[0]}</FieldDescription>
+                                        )}
+                                    </Field>
+                                )}
+                            </form.Field>
+                        </FieldGroup>
+                        <FieldGroup className="grid grid-cols-2">
+                            <form.Field name="cityMunicipality" validators={{ onChange: required("City / Municipality") }}>
+                                {(field) => (
+                                    <Field>
+                                        <FieldLabel>City / Municipality</FieldLabel>
+                                        <Select value={cityCode || undefined} onValueChange={handleCityChange} disabled={!provinceCode}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder={provinceCode ? "Select City / Municipality" : "Select Province first"} />
+                                            </SelectTrigger>
+                                            <SelectContent position="popper">
+                                                <SelectGroup>
+                                                    {cities.map((c) => (
+                                                        <SelectItem key={c.city_code} value={c.city_code}>
+                                                            {c.city_name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectGroup>
+                                            </SelectContent>
+                                        </Select>
+                                        {field.state.meta.errors?.length > 0 && (
+                                            <FieldDescription className="text-destructive">{field.state.meta.errors[0]}</FieldDescription>
+                                        )}
+                                    </Field>
+                                )}
+                            </form.Field>
+                            <form.Field name="barangay" validators={{ onChange: required("Barangay") }}>
+                                {(field) => (
+                                    <Field>
+                                        <FieldLabel>Barangay</FieldLabel>
+                                        <Select
+                                            value={(() => {
+                                                const match = barangays.find((b) => b.brgy_name === field.state.value);
+                                                return match?.brgy_code;
+                                            })()}
+                                            onValueChange={handleBarangayChange}
+                                            disabled={!cityCode}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder={cityCode ? "Select Barangay" : "Select City first"} />
+                                            </SelectTrigger>
+                                            <SelectContent position="popper">
+                                                <SelectGroup>
+                                                    {barangays.map((b) => (
+                                                        <SelectItem key={b.brgy_code} value={b.brgy_code}>
+                                                            {b.brgy_name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectGroup>
+                                            </SelectContent>
+                                        </Select>
+                                        {field.state.meta.errors?.length > 0 && (
+                                            <FieldDescription className="text-destructive">{field.state.meta.errors[0]}</FieldDescription>
+                                        )}
+                                    </Field>
+                                )}
+                            </form.Field>
+                        </FieldGroup>
                     </FieldGroup>
 
                     <DialogFooter className="mt-6 gap-2">
@@ -609,8 +730,6 @@ const Profile = () => {
                     <h3 className="text-sm font-semibold">Personal Information</h3>
                 </div>
                 <div className="px-5">
-                    <InfoRow label="Full Name" value={fullName} />
-                    <Separator />
                     <InfoRow label="First Name" value={user.first_name} />
                     <Separator />
                     <InfoRow label="Middle Name" value={user.middle_name} />
@@ -618,6 +737,14 @@ const Profile = () => {
                     <InfoRow label="Last Name" value={user.last_name} />
                     <Separator />
                     <InfoRow label="Suffix" value={user.suffix} />
+                    <Separator />
+                    <InfoRow label="Sex" value={user.sex} />
+                    <Separator />
+                    <InfoRow label="Religion" value={user.religion} />
+                    <Separator />
+                    <InfoRow label="Ethnic Group" value={user.ethnic_group} />
+                    <Separator />
+                    <InfoRow label="Contact Number" value={user.contact_number} />
                 </div>
             </div>
 
@@ -627,8 +754,6 @@ const Profile = () => {
                     <h3 className="text-sm font-semibold">Account Information</h3>
                 </div>
                 <div className="px-5">
-                    <InfoRow label="Employee ID" value={user.teacher_id} />
-                    <Separator />
                     <InfoRow label="Username" value={user.username} />
                     <Separator />
                     <div className="grid grid-cols-2 gap-2 py-2.5 text-sm">
@@ -658,11 +783,23 @@ const Profile = () => {
 
             <div className="rounded-xl border bg-card shadow-sm">
                 <div className="flex items-center gap-2 border-b px-5 py-3">
-                    <UserStar className="h-4 w-4 text-muted-foreground" />
-                    <h3 className="text-sm font-semibold">Employment</h3>
+                    <BriefcaseBusiness className="h-4 w-4 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold">Employment Information</h3>
                 </div>
                 <div className="px-5">
-                    <InfoRow label="Position" value={user.position} />
+                    <InfoRow label="Employee ID" value={user.teacher_id} />
+                    <Separator />
+                    <InfoRow label="TIN" value={user.tin} />
+                    <Separator />
+                    <InfoRow label="Fund Source" value={user.fund_source} />
+                    <Separator />
+                    <InfoRow label="Position Designation" value={user.position} />
+                    <Separator />
+                    <InfoRow label="Nature of Appointment" value={user.nature_of_appointment} />
+                    <Separator />
+                    <InfoRow label="Hiring Arrangement" value={user.hiring_arrangement} />
+                    <Separator />
+                    <InfoRow label="Status (ITEM)" value={user.item_status} />
                     <Separator />
                     <InfoRow label="Class Advisory" value={user.class_advisory} />
                 </div>
@@ -686,11 +823,17 @@ const Profile = () => {
 
             <div className="rounded-xl border bg-card shadow-sm">
                 <div className="flex items-center gap-2 border-b px-5 py-3">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <h3 className="text-sm font-semibold">Contact</h3>
+                    <GraduationCap className="h-4 w-4 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold">Educational Background</h3>
                 </div>
                 <div className="px-5">
-                    <InfoRow label="Contact Number" value={user.contact_number} />
+                    <InfoRow label="Degree Finished" value={user.degree_finished} />
+                    <Separator />
+                    <InfoRow label="Minor" value={user.minor} />
+                    <Separator />
+                    <InfoRow label="Post-Graduate" value={user.post_graduate} />
+                    <Separator />
+                    <InfoRow label="PRC Specialization" value={user.prc_specialization} />
                 </div>
             </div>
         </div>

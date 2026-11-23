@@ -19,6 +19,16 @@ export const GetAdminFormsSummary = async () => {
 };
 
 /**
+ * List form cards visible to teachers.
+ * @param {'school_forms'|'admin_forms'|undefined} category
+ */
+export const GetFormCards = async (category) => {
+    const params = category ? { category } : {};
+    const response = await api.get("/teacher/form-cards", { params });
+    return response.data.form_cards ?? [];
+};
+
+/**
  * Download the current template for a given form code.
  * Triggers a browser file download.
  *
